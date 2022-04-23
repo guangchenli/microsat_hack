@@ -4,7 +4,7 @@ CFLAGs = -std=c99 -O2
 EXE = microsat+
 INCLUDE = src
 
-OBJS = microsat.o main.o
+OBJS = microsat.o main.o utils.o
 
 all: $(EXE)
 
@@ -20,4 +20,7 @@ $(EXE): $(OBJS)
 clean:
 	rm $(BUILD)/*.o $(BUILD)/$(EXE)
 
-.PHONY: clean dir
+format:
+	clang-format -style=llvm -i $(SRC)/*.c $(SRC)/*.h
+
+.PHONY: clean dir format

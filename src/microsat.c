@@ -2,6 +2,7 @@
 
   The MIT License
 
+  Copyright (c) 2022 Guangchen Li
   Copyright (c) 2014-2018 Marijn Heule
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,15 +25,15 @@
 
 *******************************************************************************/
 
+#include "microsat.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "microsat.h"
 
 // Unassign the literal
-void unassign(struct solver *S, int lit) { S->false[lit] = 0; }
+void unassign(solver_t *S, int lit) { S->false[lit] = 0; }
 
 // Perform a restart (i.e., unassign all variables)
-void restart(struct solver *S) {
+void restart(solver_t *S) {
   // Remove all unforced false lits from falseStack
   while (S->assigned > S->forced)
     unassign(S, *(--S->assigned));
@@ -41,7 +42,7 @@ void restart(struct solver *S) {
 }
 
 // Make the first literal of the reason true
-void assign(struct solver *S, int *reason, int forced) {
+void assign(solver_t *S, int *reason, int forced) {
   // Let lit be the first literal in the reason
   int lit = reason[0];
   // Mark lit as true and IMPLIED if forced
@@ -56,13 +57,13 @@ void assign(struct solver *S, int *reason, int forced) {
 
 // Add a watch pointer to a clause containing lit
 // By updating the database and the pointers
-void addWatch(struct solver *S, int lit, int mem) {
+void addWatch(solver_t *S, int lit, int mem) {
   S->DB[mem] = S->first[lit];
   S->first[lit] = mem;
 }
 
 // Allocate memory of size mem_size
-int *getMemory(struct solver *S, int mem_size) {
+int *getMemory(solver_t *S, int mem_size) {
   // In case the code is used within a code base
   if (S->mem_used + mem_size > S->mem_max) {
     printf("c out of memory\n");
@@ -77,7 +78,7 @@ int *getMemory(struct solver *S, int mem_size) {
 }
 
 // Adds a clause stored in *in of size size
-int *addClause(struct solver *S, int *in, int size, int irr) {
+int *addClause(solver_t *S, int *in, int size, int irr) {
   // Store a pointer to the beginning of the clause
   int i, used = S->mem_used;
   // Allocate memory for the clause in the database
@@ -103,7 +104,7 @@ int *addClause(struct solver *S, int *in, int size, int irr) {
 }
 
 // Removes "less useful" lemmas from DB
-void reduceDB(struct solver *S, int k) {
+void reduceDB(solver_t *S, int k) {
   while (S->nLemmas > S->maxLemmas) {
     // Allow more lemmas in the future
     S->maxLemmas += 300;
@@ -148,7 +149,7 @@ void reduceDB(struct solver *S, int k) {
 }
 
 // Move the variable to the front of the decision list
-void bump(struct solver *S, int lit) {
+void bump(solver_t *S, int lit) {
   // MARK the literal as involved if not a top-level unit
   if (S->false[lit] != IMPLIED) {
     S->false[lit] = MARK;
@@ -165,7 +166,7 @@ void bump(struct solver *S, int lit) {
 }
 
 // Check if lit(eral) is implied by MARK literals
-int implied(struct solver *S, int lit) {
+int implied(solver_t *S, int lit) {
   // If checked before return old result
   if (S->false[lit] > MARK)
     return (S->false[lit] & MARK);
@@ -188,7 +189,7 @@ int implied(struct solver *S, int lit) {
 }
 
 // Compute a resolvent from falsified clause
-int *analyze(struct solver *S, int *clause) {
+int *analyze(solver_t *S, int *clause) {
   // Bump restarts and update the statistic
   S->res++;
   S->nConflicts++;
@@ -264,7 +265,7 @@ build:;
 }
 
 // Performs unit propagation
-int propagate(struct solver *S) {
+int propagate(solver_t *S) {
   // Initialize forced flag
   int forced = S->reason[abs(*S->processed)];
   // While unprocessed false literals
@@ -336,7 +337,7 @@ int propagate(struct solver *S) {
 }
 
 // Determine satisfiability
-int solve(struct solver *S) {
+int solve(solver_t *S) {
   // Initialize the solver
   int decision = S->head;
   S->res = 0;
@@ -386,7 +387,7 @@ int solve(struct solver *S) {
   }
 }
 
-void initCDCL(struct solver *S, int n, int m) {
+void initCDCL(solver_t *S, int n, int m) {
   // The code assumes that there is at least one variable
   if (n < 1)
     n = 1;
@@ -459,7 +460,7 @@ static void read_until_new_line(FILE *input) {
 }
 
 // Parse the formula and initialize
-int parse(struct solver *S, char *filename) {
+int parse(solver_t *S, char *filename) {
   int tmp;
   // Read the CNF file
   FILE *input = fopen(filename, "r");

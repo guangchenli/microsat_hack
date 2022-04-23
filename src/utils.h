@@ -1,9 +1,8 @@
-/**************************************************************[microsat.h]****
+/**************************************************************[utils.h]*******
 
   The MIT License
 
   Copyright (c) 2022 Guangchen Li
-  Copyright (c) 2014-2018 Marijn Heule
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -25,22 +24,4 @@
 
 *******************************************************************************/
 
-#ifndef MICROSAT
-#define MICROSAT
-
-enum { END = -9, UNSAT = 0, SAT = 1, MARK = 2, IMPLIED = 6 };
-
-// The variables in the struct are described in the initCDCL procedure
-struct solver {
-  int *DB, nVars, nClauses, mem_used, mem_fixed, mem_max, maxLemmas, nLemmas,
-      *buffer, nConflicts, *model, *reason, *falseStack, *false, *first,
-      *forced, *processed, *assigned, *next, *prev, head, res, fast, slow;
-};
-
-typedef struct solver solver_t;
-
-int solve(solver_t *);
-
-int parse(solver_t *, char *);
-
-#endif
+char *itoa(int num, char *str, int base);
