@@ -30,7 +30,7 @@
 #include <stdlib.h>
 
 // Unassign the literal
-void unassign(solver_t *S, int lit) { S->false[lit] = 0; }
+void unassign(solver_t *S, int lit) { S->falseMark[lit] = 0; }
 
 // Perform a restart (i.e., unassign all variables)
 void restart(solver_t *S) {
@@ -46,7 +46,7 @@ void assign(solver_t *S, int *reason, int forced) {
   // Let lit be the first literal in the reason
   int lit = reason[0];
   // Mark lit as true and IMPLIED if forced
-  S->false[-lit] = forced ? IMPLIED : 1;
+  S->falseMark[-lit] = forced ? IMPLIED : 1;
   // Push it on the assignment stack
   *(S->assigned++) = -lit;
   // Set the reason clause of lit
@@ -151,8 +151,8 @@ void reduceDB(solver_t *S, int k) {
 // Move the variable to the front of the decision list
 void bump(solver_t *S, int lit) {
   // MARK the literal as involved if not a top-level unit
-  if (S->false[lit] != IMPLIED) {
-    S->false[lit] = MARK;
+  if (S->falseMark[lit] != IMPLIED) {
+    S->falseMark[lit] = MARK;
     int var = abs(lit);
     // In case var is not already the head of the list
     if (var != S->head) {
@@ -168,8 +168,8 @@ void bump(solver_t *S, int lit) {
 // Check if lit(eral) is implied by MARK literals
 int implied(solver_t *S, int lit) {
   // If checked before return old result
-  if (S->false[lit] > MARK)
-    return (S->false[lit] & MARK);
+  if (S->falseMark[lit] > MARK)
+    return (S->falseMark[lit] & MARK);
   // In case lit is a decision, it is not implied
   if (!S->reason[abs(lit)])
     return 0;
@@ -178,13 +178,13 @@ int implied(solver_t *S, int lit) {
   // While there are literals in the reason
   while (*(++p))
     // Recursively check if non-MARK literals are implied
-    if ((S->false[*p] ^ MARK) && !implied(S, *p)) {
+    if ((S->falseMark[*p] ^ MARK) && !implied(S, *p)) {
       // Mark and return not implied (denoted by IMPLIED - 1)
-      S->false[lit] = IMPLIED - 1;
+      S->falseMark[lit] = IMPLIED - 1;
       return 0;
     }
   // Mark and return that the literal is implied
-  S->false[lit] = IMPLIED;
+  S->falseMark[lit] = IMPLIED;
   return 1;
 }
 
@@ -200,11 +200,11 @@ int *analyze(solver_t *S, int *clause) {
   // until the last decision
   while (S->reason[abs(*(--S->assigned))]) {
     // If the tail of the stack is MARK
-    if (S->false[*S->assigned] == MARK) {
+    if (S->falseMark[*S->assigned] == MARK) {
       // Pointer to check if first-UIP is reached
       int *check = S->assigned;
       // Check for a MARK literal before decision
-      while (S->false[*(--check)] != MARK)
+      while (S->falseMark[*(--check)] != MARK)
         // Otherwise it is the first-UIP so break
         if (!S->reason[abs(*check)])
           goto build;
@@ -228,7 +228,7 @@ build:;
   while (p >= S->forced) {
     // Only literals on the stack can be MARKed
     // If MARKed and not implied
-    if ((S->false[*p] == MARK) && !implied(S, *p)) {
+    if ((S->falseMark[*p] == MARK) && !implied(S, *p)) {
       // Add literal to conflict clause buffer
       S->buffer[size++] = *p;
       flag = 1;
@@ -242,7 +242,7 @@ build:;
         S->processed = p;
     }
     // Reset the MARK flag for all variables on the stack
-    S->false[*(p--)] = 1;
+    S->falseMark[*(p--)] = 1;
   }
 
   // Update the fast moving average
@@ -289,7 +289,7 @@ int propagate(solver_t *S) {
       // Scan the non-watched literals
       for (i = 2; unit && clause[i]; i++)
         // When clause[i] is not false, it is either true or unset
-        if (!S->false[clause[i]]) {
+        if (!S->falseMark[clause[i]]) {
           // Swap literals
           clause[1] = clause[i];
           clause[i] = lit;
@@ -307,10 +307,10 @@ int propagate(solver_t *S) {
         clause[1] = lit;
         watch = (S->DB + *watch);
         // If the other watched literal is satisfied continue
-        if (S->false[-clause[0]])
+        if (S->falseMark[-clause[0]])
           continue;
         // If the other watched literal is falsified,
-        if (!S->false[clause[0]]) {
+        if (!S->falseMark[clause[0]]) {
           // A unit clause is found, and the reason is set
           assign(S, clause, forced);
         } else {
@@ -368,7 +368,7 @@ int solve(solver_t *S) {
     }
 
     // As long as the temporay decision is assigned
-    while (S->false[decision] || S->false[-decision]) {
+    while (S->falseMark[decision] || S->falseMark[-decision]) {
       // Replace it with the next variable in the decision list
       decision = S->prev[decision];
     }
@@ -378,7 +378,7 @@ int solve(solver_t *S) {
     // Otherwise, assign the decision variable based on the model
     decision = S->model[decision] ? decision : -decision;
     // Assign the decision literal to true (change to IMPLIED-1?)
-    S->false[-decision] = 1;
+    S->falseMark[-decision] = 1;
     // And push it on the assigned stack
     *(S->assigned++) = -decision;
     // Decisions have no reason clauses
@@ -387,6 +387,7 @@ int solve(solver_t *S) {
   }
 }
 
+// n variables, m clauses
 void initCDCL(solver_t *S, int n, int m) {
   // The code assumes that there is at least one variable
   if (n < 1)
@@ -428,21 +429,20 @@ void initCDCL(solver_t *S, int n, int m) {
   // Points inside *falseStack at last unprocessed literal
   S->assigned = S->falseStack;
   // Labels for variables, non-zero means false
-  S->false = getMemory(S, 2 * n + 1);
-  S->false += n;
+  S->falseMark = getMemory(S, 2 * n + 1);
+  S->falseMark += n;
   // Offset of the first watched clause
   S->first = getMemory(S, 2 * n + 1);
   S->first += n;
   // Make sure there is a 0 before the clauses are loaded.
   S->DB[S->mem_used++] = 0;
-  int i;
   // Initialize the main datastructures:
-  for (i = 1; i <= n; i++) {
-    S->prev[i] = i - 1;
+  for (int i = 1; i <= n; i++) {
     // the double-linked list for variable-move-to-front,
+    S->prev[i] = i - 1;
     S->next[i - 1] = i;
     // the model (phase-saving), the false array,
-    S->model[i] = S->false[-i] = S->false[i] = 0;
+    S->model[i] = S->falseMark[-i] = S->falseMark[i] = 0;
     // and first (watch pointers).
     S->first[i] = S->first[-i] = END;
   }
@@ -499,11 +499,11 @@ int parse(solver_t *S, char *filename) {
       // Then add the clause to data_base
       int *clause = addClause(S, S->buffer, size, 1);
       // Check for empty clause or conflicting unit
-      if (!size || ((size == 1) && S->false[clause[0]]))
+      if (!size || ((size == 1) && S->falseMark[clause[0]]))
         // If either is found return UNSAT
         return UNSAT;
       // Check for a new unit
-      if ((size == 1) && !S->false[-clause[0]]) {
+      if ((size == 1) && !S->falseMark[-clause[0]]) {
         // Directly assign new units (forced = 1)
         assign(S, clause, 1);
       }
