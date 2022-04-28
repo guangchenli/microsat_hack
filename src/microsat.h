@@ -36,8 +36,8 @@ enum { END = -9, UNSAT = 0, SAT = 1, MARK = 2, IMPLIED = 6 };
 // The variables in the struct are described in the initCDCL procedure
 struct solver {
   int *DB, nVars, nClauses, mem_used, mem_fixed, mem_max, maxLemmas, nLemmas,
-      *buffer, nConflicts, *model, *reason, *falseStack, *falseMark, *first,
-      *forced, *processed, *assigned, *next, *prev, head, res, fast, slow;
+    *buffer, nConflicts, *model, *reason, *falseStack, *falseMark, *first,
+    *forced, *processed, *assigned, *next, *prev, head, res, luby_un, luby_vn;
 };
 
 typedef struct solver solver_t;

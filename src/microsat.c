@@ -25,9 +25,24 @@
 
 *******************************************************************************/
 
-#include "microsat.h"
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "microsat.h"
+
+// Luby factor
+#define LUBY_FCT 2
+
+// Generate the next luby series item using Donald Knuth's
+// algorithm presented at SAT competition 2012
+void next_luby(solver_t *S) {
+  if ((S->luby_un & -(S->luby_un)) == S->luby_vn) {
+    S->luby_un++;
+    S->luby_vn = 1;
+  } else {
+    S->luby_vn <<= 1;
+  }
+}
 
 // Unassign the literal
 void unassign(solver_t *S, int lit) { S->falseMark[lit] = 0; }
@@ -246,14 +261,7 @@ build:;
     // Reset the MARK flag for all variables on the stack
     S->falseMark[*(p--)] = 1;
   }
-
-  // Update the fast moving average
-  S->fast -= S->fast >> 5;
-  S->fast += lbd << 15;
-  // Update the slow moving average
-  S->slow -= S->slow >> 15;
-  S->slow += lbd << 5;
-
+  
   // Loop over all unprocessed literals
   while (S->assigned > S->processed)
     // Unassign all lits between tail & head
@@ -348,24 +356,26 @@ int solve(solver_t *S) {
     // Store nLemmas to see whether propagate adds lemmas
     int old_nLemmas = S->nLemmas;
     // Propagation returns UNSAT for a root level conflict
-    if (propagate(S) == UNSAT)
+    if (propagate(S) == UNSAT) {
       return UNSAT;
+    }
 
     // If the last decision caused a conflict
     if (S->nLemmas > old_nLemmas) {
       // Reset the decision heuristic to head
       decision = S->head;
-      // If fast average is substantially larger than slow average
-      if (S->fast > (S->slow / 100) * 125) {
+      // If the num of conflicts exceed luby threshold
+      if (S->res >= S->luby_vn * LUBY_FCT) {
         // printf("c restarting after %i conflicts (%i %i) %i\n", S->res,
         //   S->fast, S->slow, S->nLemmas > S->maxLemmas);
-        // Restart and update the averages
+        // Restart the solver
         S->res = 0;
-        S->fast = (S->slow / 100) * 125;
+	next_luby(S);
         restart(S);
         // Reduce the DB when it contains too many lemmas
-        if (S->nLemmas > S->maxLemmas)
+        if (S->nLemmas > S->maxLemmas) {
           reduceDB(S, 6);
+	}
       }
     }
 
@@ -407,9 +417,7 @@ void initCDCL(solver_t *S, int n, int m) {
   // Number of conflicts used to update scores
   S->nConflicts = 0;
   // Initial maximum number of learned clauses
-  S->maxLemmas = 2000;
-  // Initialize the fast and slow moving averages
-  S->fast = S->slow = 1 << 24;
+  S->maxLemmas = 10000;
   // Allocate the initial database
   S->DB = (int *)malloc(sizeof(int) * S->mem_max);
   // Full assignment of the (Boolean) variables (initially set to false)
@@ -440,6 +448,9 @@ void initCDCL(solver_t *S, int n, int m) {
   // Offset of the first watched clause
   S->first = getMemory(S, 2 * n + 1);
   S->first += n;
+  // Luby series generation state
+  S->luby_un = 1;
+  S->luby_vn = 1;
   // Make sure there is a 0 before the clauses are loaded.
   S->DB[S->mem_used++] = 0;
   // Initialize the main datastructures:
