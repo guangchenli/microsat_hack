@@ -57,6 +57,7 @@ void assign(solver_t *S, int *reason, int forced) {
 
 // Add a watch pointer to a clause containing lit
 // By updating the database and the pointers
+// mem: offset of the watch lit in DB
 void addWatch(solver_t *S, int lit, int mem) {
   S->DB[mem] = S->first[lit];
   S->first[lit] = mem;
@@ -78,15 +79,16 @@ int *getMemory(solver_t *S, int mem_size) {
 }
 
 // Adds a clause stored in *in of size size
+// irr: mark if the clause is irreducible(?)
 int *addClause(solver_t *S, int *in, int size, int irr) {
   // Store a pointer to the beginning of the clause
   int i, used = S->mem_used;
   // Allocate memory for the clause in the database
+  // First two mem slot are watch literals
   int *clause = getMemory(S, size + 3) + 2;
   // If the clause is not unit, then add
   // Two watch pointers to the datastructure
   if (size > 1) {
-
     addWatch(S, in[0], used);
     addWatch(S, in[1], used + 1);
   }
@@ -419,11 +421,15 @@ void initCDCL(solver_t *S, int n, int m) {
   // A buffer to store a temporary clause
   S->buffer = getMemory(S, n);
   // Array of clauses
+  // reason[lit] indicates the reason clause of the current assignment
+  // of lit. Its value is the offset of the clause from DB.
   S->reason = getMemory(S, n + 1);
   // Stack of falsified literals -- this pointer is never changed
   S->falseStack = getMemory(S, n + 1);
   // Points inside *falseStack at first decision (unforced literal)
   S->forced = S->falseStack;
+  // In the memory between 'processed' and 'assigned' resides
+  // the unprocessed literals
   // Points inside *falseStack at first unprocessed literal
   S->processed = S->falseStack;
   // Points inside *falseStack at last unprocessed literal

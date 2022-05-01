@@ -28,6 +28,9 @@
 #ifndef MICROSAT
 #define MICROSAT
 
+// If a variable is marked as IMPLIED in falseMark, then it is
+// a force assignment.
+// END marks the end of a linked list
 enum { END = -9, UNSAT = 0, SAT = 1, MARK = 2, IMPLIED = 6 };
 
 // The variables in the struct are described in the initCDCL procedure
