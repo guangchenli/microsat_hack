@@ -34,6 +34,8 @@ struct rm_heap {
   float* heap;
   // Current size of the heap
   size_t size;
+  // Max size of the heap
+  size_t max_size;
 };
 
 typedef struct rm_heap rm_heap_t;
@@ -60,6 +62,9 @@ void rm_heap_push(rm_heap_t* H, int lit, float val);
 
 // Pop the largest value from the heap
 float rm_heap_pop(rm_heap_t* H, int* lit);
+
+// Peek the largest value
+float rm_heap_peek(rm_heap_t* H, int* lit);
 
 // Clear all values in the heap
 void rm_heap_clear(rm_heap_t* H);

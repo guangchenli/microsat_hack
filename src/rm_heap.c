@@ -27,7 +27,8 @@ void rm_heap_init_heap(rm_heap_t* H, size_t s){
   H->indices = (int*)malloc(s * sizeof(int));
   H->lits = (int*)malloc(s * sizeof(int));
   H->heap = (float*)malloc(s * sizeof(float));
-  size = 0;
+  H->size = 0;
+  H->max_size = s;
   // Initialize indices
   for (int i = 0; i < s; i++) {
     H->indices[i] = -1;
@@ -40,12 +41,16 @@ void rm_heap_destroy_heap(rm_heap_t* H) {
   free(H->indices);
   free(H->lits);
   free(H->heap);
+  H->indices = NULL;
+  H->lits = NULL;
+  H->heap = NULL;
 }
 
 
 // Determine whether a literal is in heap
-inline bool rm_heap_in_heap(rm_heap_t* H, int lit) {
-  return H->heap[lit] >= 0;
+bool rm_heap_in_heap(rm_heap_t* H, int lit) {
+  assert(lit < H->max_size);
+  return H->indices[lit] >= 0;
 }
 
 // Helper macros for getting left/right child or parent
@@ -59,7 +64,7 @@ inline bool rm_heap_in_heap(rm_heap_t* H, int lit) {
 #define ISWAP(x,y) {int tmp = x; x = y; y = tmp;}
 
 // Swap S->heap[offset1]. S->heap[offset2] and update lookup tables
-inline void rm_heap_helper_swap_val(rm_heap_t* H,
+void rm_heap_helper_swap_val(rm_heap_t* H,
 				    size_t offset1, size_t offset2) {
   int lit1 = H->lits[offset1];
   int lit2 = H->lits[offset2];
@@ -136,6 +141,7 @@ size_t rm_heap_dive(rm_heap_t* H, size_t offset) {
 
 
 void rm_heap_decrease(rm_heap_t* H, int lit, float new_val) {
+  assert(lit < H->size);
   size_t heap_offset = H->indices[lit];
   H->heap[heap_offset] = new_val;
   size_t new_offset = rm_heap_dive(H, heap_offset);
@@ -143,6 +149,7 @@ void rm_heap_decrease(rm_heap_t* H, int lit, float new_val) {
 
 
 void rm_heap_increase(rm_heap_t* H, int lit, float new_val) {
+  assert(lit < H->size);
   size_t heap_offset = H->indices[lit];
   H->heap[heap_offset] = new_val;
   size_t new_offset = rm_heap_swim(H, heap_offset);
@@ -150,6 +157,7 @@ void rm_heap_increase(rm_heap_t* H, int lit, float new_val) {
 
 
 void rm_heap_update(rm_heap_t* H, int lit, float new_val) {
+  assert(lit < H->size);
   size_t heap_offset = H->indices[lit];
   float old_val = H->heap[heap_offset];
   if (new_val > old_val) {
@@ -161,6 +169,7 @@ void rm_heap_update(rm_heap_t* H, int lit, float new_val) {
 
 
 void rm_heap_push(rm_heap_t* H, int lit, float val) {
+  assert(H->size <= H->max_size);
   // Put the value at the end of the heap
   H->heap[H->size] = val;
   H->indices[lit] = H->size;
@@ -168,21 +177,30 @@ void rm_heap_push(rm_heap_t* H, int lit, float val) {
   // Increase heap size
   H->size++;
   // Let it swim up and restore heap invariant
-  rm_heap_swim(H, H->size);
+  rm_heap_swim(H, H->size - 1);
 }
 
 
 float rm_heap_pop(rm_heap_t* H, int* lit) {
   // First get the results
   float result = H->heap[0];
-  *lit = H->lits[0]
+  *lit = H->lits[0];
   // Swap top and bot element
   rm_heap_helper_swap_val(H, 0, H->size - 1);
   // Unset indices assignment
-  H->indices[*lit] = 0;
+  H->indices[*lit] = -1;
   // Shrink heap size and dive
   H->size--;
-  rm_heap_dive(H, 0);
+  if (H->size > 0)
+    rm_heap_dive(H, 0);
+  return result;
+}
+
+
+float rm_heap_peek(rm_heap_t* H, int* lit){
+  assert(H->size > 0);
+  *lit = H->lits[0];
+  return H->heap[0];
 }
 
 
