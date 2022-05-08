@@ -6,7 +6,7 @@ EXE = microsat+
 INCLUDE = ./src
 TEST_INCLUDE = ./test
 
-OBJS = microsat.o main.o utils.o rm_heap.o
+OBJS = microsat.o main.o utils.o int_queue.o
 
 TEST_OBJS = munit.o
 

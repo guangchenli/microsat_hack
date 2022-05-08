@@ -25,12 +25,21 @@
 
 *******************************************************************************/
 
-#include "microsat.h"
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "microsat.h"
+
+#define LBD_QUEUE_MAX_SIZE 50
+#define TRAIL_QUEUE_MAX_SIZE 5000
+#define RESTART_FACTOR 0.8
+#define TRAIL_FACTOR 1.4
+
 // Unassign the literal
-void unassign(solver_t *S, int lit) { S->falseMark[lit] = 0; }
+void unassign(solver_t *S, int lit) {
+  S->falseMark[lit] = 0;
+  S->nAssigned--;
+}
 
 // Perform a restart (i.e., unassign all variables)
 void restart(solver_t *S) {
@@ -53,6 +62,7 @@ void assign(solver_t *S, int *reason, int forced) {
   S->reason[abs(lit)] = 1 + (int)((reason)-S->DB);
   // Mark the literal as true in the model
   S->model[abs(lit)] = (lit > 0);
+  S->nAssigned++;
 }
 
 // Add a watch pointer to a clause containing lit
@@ -247,12 +257,19 @@ build:;
     S->falseMark[*(p--)] = 1;
   }
 
+  S->lbd_sum += lbd;
+  int_queue_t* queue = &(S->lbd_queue);
+  if (int_queue_size(queue) >= LBD_QUEUE_MAX_SIZE) {
+    int_queue_pop(queue);
+  } 
+  int_queue_push(queue, lbd);
+
   // Update the fast moving average
-  S->fast -= S->fast >> 5;
-  S->fast += lbd << 15;
+  /* S->fast -= S->fast >> 5; */
+  /* S->fast += lbd << 15; */
   // Update the slow moving average
-  S->slow -= S->slow >> 15;
-  S->slow += lbd << 5;
+  /* S->slow -= S->slow >> 15; */
+  /* S->slow += lbd << 5; */
 
   // Loop over all unprocessed literals
   while (S->assigned > S->processed)
@@ -356,12 +373,28 @@ int solve(solver_t *S) {
       // Reset the decision heuristic to head
       decision = S->head;
       // If fast average is substantially larger than slow average
-      if (S->fast > (S->slow / 100) * 125) {
-        // printf("c restarting after %i conflicts (%i %i) %i\n", S->res,
-        //   S->fast, S->slow, S->nLemmas > S->maxLemmas);
+      int_queue_t* trail_queue = &(S->trail_queue);
+      int_queue_t* lbd_queue = &(S->lbd_queue);
+      if (int_queue_size(trail_queue) >= TRAIL_QUEUE_MAX_SIZE &&
+	  int_queue_size(trail_queue) > 0) {
+	int_queue_pop(trail_queue);
+      }
+      int_queue_push(trail_queue, S->nAssigned);
+      if (int_queue_size(lbd_queue) >= LBD_QUEUE_MAX_SIZE &&
+	  int_queue_size(trail_queue) >= TRAIL_QUEUE_MAX_SIZE &&
+	  (float)S->nAssigned > int_queue_avg(trail_queue) * TRAIL_FACTOR) {
+	int_queue_clean(lbd_queue);
+      }
+      /* if (S->fast > (S->slow / 100) * 125) { */
+      if (int_queue_size(&(S->lbd_queue)) >= LBD_QUEUE_MAX_SIZE &&
+	  (int_queue_avg(&(S->lbd_queue)) *
+	   RESTART_FACTOR) > (S->lbd_sum / (float)S->nConflicts)) {
+        /* printf("c restarting after %i conflicts (%lu %f) %i\n", S->res, */
+	/*        S->lbd_sum, S->lbd_sum/(float)(S->nConflicts), */
+	/*        S->nLemmas > S->maxLemmas); */
         // Restart and update the averages
         S->res = 0;
-        S->fast = (S->slow / 100) * 125;
+        /* S->fast = (S->slow / 100) * 125; */
         restart(S);
         // Reduce the DB when it contains too many lemmas
         if (S->nLemmas > S->maxLemmas)
@@ -409,7 +442,7 @@ void initCDCL(solver_t *S, int n, int m) {
   // Initial maximum number of learned clauses
   S->maxLemmas = 2000;
   // Initialize the fast and slow moving averages
-  S->fast = S->slow = 1 << 24;
+  /* S->fast = S->slow = 1 << 24; */
   // Allocate the initial database
   S->DB = (int *)malloc(sizeof(int) * S->mem_max);
   // Full assignment of the (Boolean) variables (initially set to false)
@@ -442,6 +475,10 @@ void initCDCL(solver_t *S, int n, int m) {
   S->first += n;
   // Make sure there is a 0 before the clauses are loaded.
   S->DB[S->mem_used++] = 0;
+  // Initialize
+  S->lbd_sum = 0;
+  int_queue_init(&(S->lbd_queue), LBD_QUEUE_MAX_SIZE);
+  int_queue_init(&(S->trail_queue), TRAIL_QUEUE_MAX_SIZE);
   // Initialize the main datastructures:
   for (int i = 1; i <= n; i++) {
     // the double-linked list for variable-move-to-front,

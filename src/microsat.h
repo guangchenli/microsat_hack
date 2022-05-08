@@ -28,6 +28,8 @@
 #ifndef MICROSAT
 #define MICROSAT
 
+#include "int_queue.h"
+
 // If a variable is marked as IMPLIED in falseMark, then it is
 // a force assignment.
 // END marks the end of a linked list
@@ -36,8 +38,11 @@ enum { END = -9, UNSAT = 0, SAT = 1, MARK = 2, IMPLIED = 6 };
 // The variables in the struct are described in the initCDCL procedure
 struct solver {
   int *DB, nVars, nClauses, mem_used, mem_fixed, mem_max, maxLemmas, nLemmas,
-      *buffer, nConflicts, *model, *reason, *falseStack, *falseMark, *first,
-      *forced, *processed, *assigned, *next, *prev, head, res, fast, slow;
+    *buffer, nConflicts, *model, *reason, *falseStack, *falseMark, *first,
+    *forced, *processed, *assigned, *next, *prev, head, res, nAssigned; /* fast, slow */
+  unsigned long int lbd_sum;
+  int_queue_t lbd_queue;
+  int_queue_t trail_queue;
 };
 
 typedef struct solver solver_t;
